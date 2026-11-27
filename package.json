@@ -1,0 +1,16 @@
+{
+  "name": "automobile",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "test": "node --test",
+    "deploy": "tgcloud push",
+    "status": "tgcloud status",
+    "poll": "tgcloud run endpoints/poll",
+    "poll:dry": "tgcloud run endpoints/poll '{ dryRun: true }'"
+  },
+  "devDependencies": {
+    "@tgcloud/cli": "^0.2.0"
+  }
+}

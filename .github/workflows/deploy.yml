@@ -1,0 +1,51 @@
+name: deploy
+
+# Деплой нужен только для handlers/message (команда /chatid); опрос канала
+# работает и без него (см. poll.yml).
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm test
+
+      # .tgcloud/ с номером ревизии gitignored, поэтому в CI push без --force
+      # отказывает «project has never synced». master — источник истины.
+      # migrate здесь не запускается: он интерактивный, схему применять локально.
+      - run: npx tgcloud push --force
+        env:
+          TGCLOUD_TOKEN: ${{ secrets.TGCLOUD_TOKEN }}
+
+      # Подписать вебхук на типы апдейтов по текущим handlers/*. Сразу после push
+      # Telegram может ответить 429 — повторяем с паузой, только на 429.
+      - name: Sync webhook
+        run: |
+          for delay in 3 6 12 24 0; do
+            if out=$(npx tgcloud webhook sync 2>&1); then echo "$out"; break; fi
+            echo "$out"
+            if ! grep -q 'Too Many Requests' <<<"$out" || [ "$delay" = 0 ]; then exit 1; fi
+            sleep "$delay"
+          done
+          npx tgcloud webhook
+        env:
+          TGCLOUD_TOKEN: ${{ secrets.TGCLOUD_TOKEN }}

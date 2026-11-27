@@ -1,0 +1,50 @@
+name: poll
+
+# Опрос канала @hc_avtomobilist. Telegram Serverless не умеет запускать код по
+# расписанию, поэтому cron живёт здесь: `tgcloud run` выполняет endpoints/poll
+# в облаке бота (с исходниками из этого коммита, деплой для этого не нужен).
+#
+# Каждые 30 минут с 07:00 до 22:30 по Екатеринбургу (UTC+5). Анонсы продаж
+# выходят за 1,5–8 часов до старта, так что задержки до 30 минут хватает, а
+# минут GitHub Actions уходит ~1000 в месяц (в приватном репо бесплатно 2000).
+# GitHub может задерживать запуски по cron на 5–15 минут.
+on:
+  schedule:
+    - cron: '*/30 2-17 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Только показать, что было бы переслано'
+        type: boolean
+        default: false
+
+# Два опроса одновременно могли бы переслать один пост дважды.
+concurrency:
+  group: poll
+  cancel-in-progress: false
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Poll channel
+        run: |
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            npx tgcloud run endpoints/poll '{ dryRun: true }'
+          else
+            npx tgcloud run endpoints/poll
+          fi
+        env:
+          TGCLOUD_TOKEN: ${{ secrets.TGCLOUD_TOKEN }}
