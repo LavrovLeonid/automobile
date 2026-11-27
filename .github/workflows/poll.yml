@@ -1,8 +1,9 @@
 name: poll
 
 # Опрос канала @hc_avtomobilist. Telegram Serverless не умеет запускать код по
-# расписанию, поэтому cron живёт здесь: `tgcloud run` выполняет endpoints/poll
-# в облаке бота (с исходниками из этого коммита, деплой для этого не нужен).
+# расписанию, а из его облака t.me недоступен. Поэтому cron живёт здесь:
+# scripts/poll.js скачивает превью канала на раннере и через `tgcloud run`
+# передаёт посты в endpoints/poll (исходники из этого коммита, деплой не нужен).
 #
 # Каждые 30 минут с 07:00 до 22:30 по Екатеринбургу (UTC+5). Анонсы продаж
 # выходят за 1,5–8 часов до старта, так что задержки до 30 минут хватает, а
@@ -42,9 +43,9 @@ jobs:
       - name: Poll channel
         run: |
           if [ "${{ inputs.dry_run }}" = "true" ]; then
-            npx tgcloud run endpoints/poll '{ dryRun: true }'
+            node scripts/poll.js --dry-run
           else
-            npx tgcloud run endpoints/poll
+            node scripts/poll.js
           fi
         env:
           TGCLOUD_TOKEN: ${{ secrets.TGCLOUD_TOKEN }}

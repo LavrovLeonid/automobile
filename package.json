@@ -7,8 +7,8 @@
     "test": "node --test",
     "deploy": "tgcloud push",
     "status": "tgcloud status",
-    "poll": "tgcloud run endpoints/poll",
-    "poll:dry": "tgcloud run endpoints/poll '{ dryRun: true }'"
+    "poll": "node scripts/poll.js",
+    "poll:dry": "node scripts/poll.js --dry-run"
   },
   "devDependencies": {
     "@tgcloud/cli": "^0.2.0"

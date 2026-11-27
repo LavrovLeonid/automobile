@@ -7,13 +7,17 @@
 
 ## Как устроено
 
-- Бот не может читать чужой канал через Bot API, поэтому `endpoints/poll`
-  скачивает публичное веб-превью `https://t.me/s/hc_avtomobilist` (последние ~20
-  постов), фильтрует их и пересылает подходящие через `forwardMessage`. Если
-  переслать нельзя, шлёт ссылку на пост.
+- Бот не может читать чужой канал через Bot API, поэтому берём публичное
+  веб-превью `https://t.me/s/hc_avtomobilist` (последние ~20 постов).
+- Из облака Telegram Serverless `t.me` недоступен (`fetch: request failed`),
+  поэтому страницу скачивает и разбирает [`scripts/poll.js`](scripts/poll.js)
+  на раннере GitHub Actions и передаёт посты в облако:
+  `npx tgcloud run endpoints/poll '{ posts: [...] }'`. `endpoints/poll`
+  фильтрует их и пересылает подходящие через `forwardMessage`; если переслать
+  нельзя, шлёт ссылку на пост.
 - В Telegram Serverless нет запуска по расписанию, поэтому cron живёт в GitHub
   Actions: [`poll.yml`](.github/workflows/poll.yml) каждые 30 минут с 07:00 до
-  22:30 по Екатеринбургу вызывает `npx tgcloud run endpoints/poll`.
+  22:30 по Екатеринбургу.
   Анонсы выходят за 1,5–8 часов до старта продаж, так что этой задержки хватает.
 - Уже пересланные посты хранятся в таблице `forwarded`, повторно не уходят.
   На первом запуске бот запоминает последний пост (`state.baseline`) и старые
@@ -26,7 +30,8 @@
 | `tgcloud/lib/filter.js`      | правила «это анонс продаж»               |
 | `tgcloud/lib/preview.js`     | разбор HTML превью канала                |
 | `tgcloud/lib/select.js`      | что пересылать (baseline, дубликаты)     |
-| `tgcloud/endpoints/poll.js`  | опрос: fetch → фильтр → пересылка        |
+| `scripts/poll.js`            | скачать превью на раннере → `tgcloud run` |
+| `tgcloud/endpoints/poll.js`  | фильтр → пересылка (в облаке)            |
 | `tgcloud/schema.js`          | таблицы `state`, `forwarded`             |
 
 ## Запуск с нуля
@@ -67,5 +72,7 @@ npm test
 
 - Запуск poll красный с «не нашлось ни одного поста» — Telegram поменял вёрстку
   превью, чинить `tgcloud/lib/preview.js`.
+- Группу преобразовали в супергруппу — id сменится на `-100…`, обновить
+  `TARGET_CHAT_ID` (узнать заново через `/chatid`).
 - Анонс не переслался — посмотреть его текст и дополнить `INCLUDE` в
   `tgcloud/lib/filter.js` (и тест в `test/filter.test.js`).

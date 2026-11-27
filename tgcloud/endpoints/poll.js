@@ -1,24 +1,23 @@
-// Опрос канала. Вызывается по расписанию из GitHub Actions:
-//   npx tgcloud run endpoints/poll
-// Аргументы (необязательные): { dryRun: true } — только показать, что было бы переслано.
-import { db, api, fetch } from 'sdk';
+// Обработка свежих постов канала. Из облака Telegram сайт t.me недоступен
+// (fetch падает), поэтому страницу превью скачивает и разбирает scripts/poll.js
+// на раннере GitHub Actions, а сюда передаёт готовые посты:
+//   npx tgcloud run endpoints/poll '{ posts: [{ id, text }, …], dryRun?: true }'
+// dryRun — только показать, что было бы переслано.
+import { db, api } from 'sdk';
 import { eq } from 'sdk/db';
 import { state, forwarded } from '../schema.js';
 import { SOURCE_CHANNEL, TARGET_CHAT_ID } from '../lib/config.js';
-import { parsePreview } from '../lib/preview.js';
 import { selectPosts } from '../lib/select.js';
 
 const BASELINE_KEY = 'baseline';
 
-export default async function (input = {}) {
+export default async function (input = {}, ctx = {}) {
+  // Вызов из Mini App пришёл бы с initData. Опрос запускается только через
+  // `tgcloud run`, поэтому чужие вызовы с подставными постами отклоняем.
+  if (ctx.initData) throw new Error('poll вызывается только через tgcloud run');
   if (!TARGET_CHAT_ID) throw new Error('TARGET_CHAT_ID не задан в tgcloud/lib/config.js');
 
-  const res = await fetch(`https://t.me/s/${SOURCE_CHANNEL}`);
-  if (!res.ok) throw new Error(`t.me ответил ${res.status}`);
-  const posts = parsePreview(await res.text(), SOURCE_CHANNEL);
-  // Пустая страница — скорее всего поменялась вёрстка. Падаем громко, чтобы
-  // красный запуск в Actions было видно, а не молча ничего не пересылаем.
-  if (posts.length === 0) throw new Error('На странице превью не нашлось ни одного поста');
+  const posts = validatePosts(input.posts);
 
   const baselineRow = await db.select().from(state).where(eq(state.key, BASELINE_KEY)).get();
   const baseline = baselineRow ? Number(baselineRow.value) : null;
@@ -42,6 +41,18 @@ export default async function (input = {}) {
   }
 
   return { posts: posts.length, lastPostId: posts.at(-1).id, forwarded: toForward.map((p) => p.id) };
+}
+
+function validatePosts(posts) {
+  // Пустой список — скорее всего поменялась вёрстка превью. Падаем громко,
+  // чтобы красный запуск в Actions было видно.
+  if (!Array.isArray(posts) || posts.length === 0) throw new Error('Не передано ни одного поста');
+  for (const p of posts) {
+    if (!Number.isInteger(p?.id) || p.id <= 0 || typeof p.text !== 'string') {
+      throw new Error(`Некорректный пост: ${JSON.stringify(p).slice(0, 100)}`);
+    }
+  }
+  return [...posts].sort((a, b) => a.id - b.id);
 }
 
 async function forward(postId) {
