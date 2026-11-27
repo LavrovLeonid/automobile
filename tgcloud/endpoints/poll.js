@@ -3,11 +3,12 @@
 // на раннере GitHub Actions, а сюда передаёт готовые посты:
 //   npx tgcloud run endpoints/poll '{ posts: [{ id, text }, …], dryRun?: true }'
 // dryRun — только показать, что было бы переслано.
-import { db, api } from 'sdk';
+import { db } from 'sdk';
 import { eq } from 'sdk/db';
 import { state, forwarded } from '../schema.js';
-import { SOURCE_CHANNEL, TARGET_CHAT_ID } from '../lib/config.js';
+import { TARGET_CHAT_ID } from '../lib/config.js';
 import { selectPosts } from '../lib/select.js';
+import { notifyPost } from '../lib/notify.js';
 
 const BASELINE_KEY = 'baseline';
 
@@ -35,7 +36,7 @@ export default async function (input = {}, ctx = {}) {
   }
 
   for (const post of toForward) {
-    await forward(post.id);
+    await notifyPost(post.id);
     await db.insert(forwarded).values({ postId: post.id }).run();
     console.log(`Переслан пост #${post.id}: ${post.text.slice(0, 80)}`);
   }
@@ -53,14 +54,4 @@ function validatePosts(posts) {
     }
   }
   return [...posts].sort((a, b) => a.id - b.id);
-}
-
-async function forward(postId) {
-  try {
-    await api.forwardMessage({ chat_id: TARGET_CHAT_ID, from_chat_id: `@${SOURCE_CHANNEL}`, message_id: postId });
-  } catch (err) {
-    // Если переслать из канала нельзя, шлём ссылку на пост — Telegram покажет его превью.
-    console.warn(`forwardMessage #${postId} не удался: ${err.description ?? err.message}; шлю ссылку`);
-    await api.sendMessage({ chat_id: TARGET_CHAT_ID, text: `🎟 Старт продажи билетов\nhttps://t.me/${SOURCE_CHANNEL}/${postId}` });
-  }
 }

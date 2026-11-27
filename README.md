@@ -13,8 +13,9 @@
   поэтому страницу скачивает и разбирает [`scripts/poll.js`](scripts/poll.js)
   на раннере GitHub Actions и передаёт посты в облако:
   `npx tgcloud run endpoints/poll '{ posts: [...] }'`. `endpoints/poll`
-  фильтрует их и пересылает подходящие через `forwardMessage`; если переслать
-  нельзя, шлёт ссылку на пост.
+  фильтрует их и шлёт в группу ссылку на каждый анонс — Telegram показывает под
+  ней превью поста. Настоящий forward невозможен: бот не состоит в канале, и
+  `forwardMessage` отвечает «message to forward not found».
 - В Telegram Serverless нет запуска по расписанию, поэтому cron живёт в GitHub
   Actions: [`poll.yml`](.github/workflows/poll.yml) каждые 30 минут с 07:00 до
   22:30 по Екатеринбургу.
@@ -31,7 +32,8 @@
 | `tgcloud/lib/preview.js`     | разбор HTML превью канала                |
 | `tgcloud/lib/select.js`      | что пересылать (baseline, дубликаты)     |
 | `scripts/poll.js`            | скачать превью на раннере → `tgcloud run` |
-| `tgcloud/endpoints/poll.js`  | фильтр → пересылка (в облаке)            |
+| `tgcloud/endpoints/poll.js`  | фильтр → уведомление (в облаке)          |
+| `tgcloud/lib/notify.js`      | сообщение со ссылкой на пост             |
 | `tgcloud/schema.js`          | таблицы `state`, `forwarded`             |
 
 ## Запуск с нуля
